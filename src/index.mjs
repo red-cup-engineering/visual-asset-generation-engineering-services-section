@@ -27,7 +27,7 @@ function hex(value, label) {
 
 export function admitScene(input) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw new TypeError("scene must be an object");
-  if (input.version !== "koios.visual-scene/v1") throw new TypeError("scene version must be koios.visual-scene/v1");
+  if (input.version !== "koios.visual-scene/v2") throw new TypeError("scene version must be koios.visual-scene/v2");
   if (!USES.has(input.use)) throw new TypeError("scene use is not admitted");
   if (input.canvas === null || typeof input.canvas !== "object" || !ASPECTS.has(input.canvas.aspectRatio)) throw new TypeError("scene canvas aspect ratio is not admitted");
   if (input.palette === null || typeof input.palette !== "object") throw new TypeError("scene palette is required");
@@ -43,6 +43,25 @@ export function admitScene(input) {
     if (!ROLES.has(raw.role)) throw new TypeError(`layers[${index}].role is not admitted`);
     if (!POLICIES.has(raw.generatorPolicy)) throw new TypeError(`layers[${index}].generatorPolicy is not admitted`);
     if (!Number.isInteger(raw.z) || raw.z < 0 || raw.z > 99) throw new TypeError(`layers[${index}].z must be 0..99`);
+    const layout = raw.layout;
+    if (!layout || typeof layout !== "object" || Array.isArray(layout)) throw new TypeError(`layers[${index}].layout is required`);
+    for (const key of ["x","y","width","height"]) {
+      const value = layout[key];
+      if (!Number.isFinite(value) || value < 0 || value > 1 || (key === "width" || key === "height") && value === 0) {
+        throw new TypeError(`layers[${index}].layout.${key} is outside normalized bounds`);
+      }
+    }
+    if (layout.x + layout.width > 1.000001 || layout.y + layout.height > 1.000001) throw new TypeError(`layers[${index}].layout escapes the normalized canvas`);
+    const anchor = layout.anchor ?? "center";
+    if (!["center","north","south","east","west","north-east","north-west","south-east","south-west"].includes(anchor)) throw new TypeError(`layers[${index}].layout.anchor is not admitted`);
+    const fit = layout.fit ?? "contain";
+    if (!["contain","cover"].includes(fit)) throw new TypeError(`layers[${index}].layout.fit is not admitted`);
+    const opacity = layout.opacity ?? 1;
+    if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) throw new TypeError(`layers[${index}].layout.opacity is not admitted`);
+    const rotation = layout.rotation ?? 0;
+    if (!Number.isFinite(rotation) || rotation < -180 || rotation > 180) throw new TypeError(`layers[${index}].layout.rotation is not admitted`);
+    const blend = layout.blend ?? "normal";
+    if (!["normal","multiply","screen"].includes(blend)) throw new TypeError(`layers[${index}].layout.blend is not admitted`);
     const prompt = typeof raw.semanticPrompt === "string" ? raw.semanticPrompt.trim() : "";
     return Object.freeze({
       id,
@@ -52,6 +71,10 @@ export function admitScene(input) {
       paletteRoles: Object.freeze(Array.isArray(raw.paletteRoles) ? [...new Set(raw.paletteRoles.map(String))] : []),
       transparent: raw.transparent === true,
       z: raw.z,
+      layout: Object.freeze({
+        x: layout.x, y: layout.y, width: layout.width, height: layout.height,
+        anchor, fit, opacity, rotation, clip: layout.clip !== false, blend,
+      }),
       semanticPrompt: prompt,
       avoid: Object.freeze(Array.isArray(raw.avoid) ? raw.avoid.map(String) : []),
     });
@@ -68,6 +91,7 @@ export function admitScene(input) {
       wordmark: input.assembly?.wordmark === true,
       textMode: input.assembly?.textMode === "none" ? "none" : "deterministic-overlay",
       cropStrategy: ["cover","contain","subject-aware"].includes(input.assembly?.cropStrategy) ? input.assembly.cropStrategy : "subject-aware",
+      compositionMode: "normalized-scene",
     }),
   });
   return Object.freeze({ id: niDigest(scene), ...scene });
@@ -328,41 +352,62 @@ function esc(value) {
   return String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll('"',"&quot;");
 }
 
-function frameFor(index, total, width, height, safe) {
-  const innerX = width * safe, innerY = height * safe;
-  const innerW = width * (1 - safe * 2), innerH = height * (1 - safe * 2);
-  if (total === 1) return { x: innerX, y: innerY, width: innerW, height: innerH };
-  const cols = Math.ceil(Math.sqrt(total));
-  const rows = Math.ceil(total / cols);
-  const gap = Math.min(width,height) * .018;
-  const cellW = (innerW - gap * (cols - 1)) / cols;
-  const cellH = (innerH - gap * (rows - 1)) / rows;
-  const col = index % cols, row = Math.floor(index / cols);
-  return { x: innerX + col * (cellW + gap), y: innerY + row * (cellH + gap), width: cellW, height: cellH };
+function anchorAlignment(anchor) {
+  switch (anchor) {
+    case "north": return "xMidYMin";
+    case "south": return "xMidYMax";
+    case "east": return "xMaxYMid";
+    case "west": return "xMinYMid";
+    case "north-east": return "xMaxYMin";
+    case "north-west": return "xMinYMin";
+    case "south-east": return "xMaxYMax";
+    case "south-west": return "xMinYMax";
+    default: return "xMidYMid";
+  }
+}
+
+function pixelFrame(layout, width, height) {
+  return Object.freeze({
+    x: layout.x * width,
+    y: layout.y * height,
+    width: layout.width * width,
+    height: layout.height * height,
+  });
 }
 
 export function assembleSvg({ scene: input, components = {}, width = 1600, height = 900, label } = {}) {
   const scene = input?.id ? input : admitScene(input);
+  if (scene.version !== "koios.visual-scene/v2" || scene.assembly?.compositionMode !== "normalized-scene") throw new TypeError("assembly requires an admitted Koios scene v2");
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 320 || height < 180 || width > 8192 || height > 8192) throw new TypeError("assembly dimensions are invalid");
   const generated = scene.layers.filter((layer) => layer.generatorPolicy !== "deterministic-only");
-  const images = generated.map((layer,index) => {
+  const defs = [];
+  const images = generated.map((layer) => {
     const component = components[layer.id];
     if (!component || typeof component.href !== "string" || component.href.trim() === "") throw new TypeError(`assembly is missing component ${layer.id}`);
-    const frame = component.frame ?? frameFor(index, generated.length, width, height, scene.canvas.safeArea);
-    const fit = component.fit === "contain" ? "xMidYMid meet" : "xMidYMid slice";
-    return `<image data-layer="${esc(layer.id)}" href="${esc(component.href)}" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}" preserveAspectRatio="${fit}"/>`;
+    const frame = pixelFrame(layer.layout,width,height);
+    const align = anchorAlignment(layer.layout.anchor);
+    const preserve = `${align} ${layer.layout.fit === "contain" ? "meet" : "slice"}`;
+    const clipId = `clip-${layer.id}`;
+    if (layer.layout.clip) defs.push(`<clipPath id="${esc(clipId)}"><rect x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/></clipPath>`);
+    const cx = frame.x + frame.width / 2;
+    const cy = frame.y + frame.height / 2;
+    const transform = layer.layout.rotation === 0 ? "" : ` transform="rotate(${layer.layout.rotation} ${cx} ${cy})"`;
+    const clip = layer.layout.clip ? ` clip-path="url(#${esc(clipId)})"` : "";
+    const style = layer.layout.blend === "normal" ? "" : ` style="mix-blend-mode:${layer.layout.blend}"`;
+    return `<image data-layer="${esc(layer.id)}" data-role="${esc(layer.role)}" href="${esc(component.href)}" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}" preserveAspectRatio="${preserve}" opacity="${layer.layout.opacity}"${transform}${clip}${style}/>`;
   }).join("\n");
   const eye = scene.assembly.eyeMark ? `<g id="koios-eye" transform="translate(${width - 96} 72)" fill="none" stroke="${scene.palette.paper}" stroke-width="5"><path d="M-42 0C-22-26 22-26 42 0C22 26-22 26-42 0Z"/><circle cx="0" cy="0" r="12" fill="${scene.palette.paper}" stroke="none"/><circle cx="0" cy="0" r="5" fill="${scene.palette.signal}" stroke="none"/></g>` : "";
   const deterministicLabel = scene.assembly.textMode === "deterministic-overlay" && label ? `<text x="${width * scene.canvas.safeArea}" y="${height - height * scene.canvas.safeArea}" font-family="system-ui,sans-serif" font-size="${Math.max(18,Math.round(height*.035))}" font-weight="650" fill="${scene.palette.ink}">${esc(label)}</text>` : "";
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img">`,
+    defs.length ? `<defs>${defs.join("")}</defs>` : "",
     `<rect width="${width}" height="${height}" fill="${scene.palette.paper}"/>`,
     images,
     `<rect x="0" y="0" width="${Math.max(8,Math.round(width*.008))}" height="${height}" fill="${scene.palette.signal}"/>`,
     eye,
     deterministicLabel,
     "</svg>",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
   return Object.freeze({ id: niDigest({ scene: scene.id, width, height, svg }), mediaType: "image/svg+xml", svg });
 }
 

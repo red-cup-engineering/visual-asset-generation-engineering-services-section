@@ -15,16 +15,16 @@ import {
 } from "../src/index.mjs";
 
 const sceneInput = {
-  version: "koios.visual-scene/v1",
+  version: "koios.visual-scene/v2",
   consumer: "koios.news",
   use: "article-hero",
   canvas: { aspectRatio: "16:9", safeArea: .06 },
   palette: { paper: "#fbfaf7", ink: "#171a21", signal: "#000088", "signal-secondary": "#5366c4", fog: "#b9c1da" },
   layers: [
-    { id: "world", role: "world", generatorPolicy: "reuse-first", primitiveHints: ["circle","horizon"], paletteRoles: ["paper","ink","signal"], transparent: false, z: 1, semanticPrompt: "a bounded world under institutional pressure" },
-    { id: "agent", role: "actor", generatorPolicy: "generate", primitiveHints: ["silhouette","eye"], paletteRoles: ["ink","signal"], transparent: true, z: 2, semanticPrompt: "one nonhuman economic actor treated as ordinary" },
+    { id: "world", role: "world", generatorPolicy: "reuse-first", primitiveHints: ["circle","horizon"], paletteRoles: ["paper","ink","signal"], transparent: false, z: 1, layout: { x: 0, y: 0, width: .68, height: 1, anchor: "west", fit: "cover", opacity: 1, rotation: 0, clip: true, blend: "normal" }, semanticPrompt: "a bounded world under institutional pressure" },
+    { id: "agent", role: "actor", generatorPolicy: "generate", primitiveHints: ["silhouette","eye"], paletteRoles: ["ink","signal"], transparent: true, z: 2, layout: { x: .58, y: .16, width: .34, height: .72, anchor: "south-east", fit: "contain", opacity: 1, rotation: 0, clip: false, blend: "normal" }, semanticPrompt: "one nonhuman economic actor treated as ordinary" },
   ],
-  assembly: { eyeMark: true, wordmark: false, textMode: "deterministic-overlay", cropStrategy: "subject-aware" },
+  assembly: { eyeMark: true, wordmark: false, textMode: "deterministic-overlay", cropStrategy: "subject-aware", compositionMode: "normalized-scene" },
 };
 
 test("scene admission is deterministic and canonical", () => {
@@ -55,7 +55,7 @@ test("provider request compilers are credential-blind", () => {
 
 test("transparent components prefer Ideogram but remain provider-diverse", () => {
   const scene = admitScene(sceneInput);
-  assert.deepEqual(providerCandidates(scene.layers.find(x=>x.id==="agent")),["ideogram-4-5","gemini-3-pro-image","gemini-3.1-flash-image"]);
+  assert.deepEqual(providerCandidates(scene.layers.find(x=>x.id==="agent")),["ideogram-4-5","gpt-image-2","gemini-3-pro-image","gemini-3.1-flash-image","recraftv4_1_vector"]);
 });
 
 test("deterministic assembler keeps generator output below publication chrome", () => {
@@ -73,6 +73,9 @@ test("deterministic assembler keeps generator output below publication chrome", 
   assert.match(assembly.svg,/id="koios-eye"/u);
   assert.match(assembly.svg,/Watching the future take shape/u);
   assert.match(assembly.svg,/data-layer="agent"/u);
+  assert.match(assembly.svg,/x="928"/u);
+  assert.match(assembly.svg,/width="544"/u);
+  assert.match(assembly.svg,/xMaxYMax meet/u);
   const manifest = assetManifest({
     scene,
     components:{world:{assetId:niDigest("world"),provider:"gemini-3.1-flash-image"},agent:{assetId:niDigest("agent"),provider:"ideogram-4-5"}},
@@ -172,4 +175,17 @@ test("geometry-heavy Koios layers prefer native vector generation", () => {
   const scene=admitScene(sceneInput);
   const institution={...scene.layers[0],role:"institution"};
   assert.equal(providerCandidates(institution)[0],"recraftv4_1_vector");
+});
+
+
+test("scene v2 rejects missing spatial contracts", () => {
+  const malformed=structuredClone(sceneInput);
+  delete malformed.layers[0].layout;
+  assert.throws(()=>admitScene(malformed),/layout is required/u);
+});
+
+test("normalized layout cannot escape the canvas", () => {
+  const malformed=structuredClone(sceneInput);
+  malformed.layers[0].layout={...malformed.layers[0].layout,x:.8,width:.4};
+  assert.throws(()=>admitScene(malformed),/escapes the normalized canvas/u);
 });

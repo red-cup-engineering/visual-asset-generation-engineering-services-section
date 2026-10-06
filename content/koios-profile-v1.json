@@ -1,5 +1,5 @@
 {
-  "id": "koios.visual-profile/v1",
+  "id": "koios.visual-profile/v2",
   "palette": {
     "paper": "#fbfaf7",
     "ink": "#171a21",
@@ -43,5 +43,11 @@
     ],
     "providerDiversityMinimum": 2,
     "preferredDiversityTarget": 3
+  },
+  "sceneGrammar": "koios.visual-scene/v2",
+  "composition": {
+    "mode": "normalized-scene",
+    "regenerationOnCrop": false,
+    "negativeSpaceReservedByTemplate": true
   }
 }

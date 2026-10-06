@@ -15,6 +15,11 @@ export function niDigest(value) {
   return `ni:///sha-256;${createHash("sha256").update(stableJson(value)).digest("base64url")}`;
 }
 
+export function niBytes(bytes) {
+  if (!(bytes instanceof Uint8Array)) throw new TypeError("niBytes requires Uint8Array bytes");
+  return `ni:///sha-256;${createHash("sha256").update(bytes).digest("base64url")}`;
+}
+
 function nonempty(value, label) {
   if (typeof value !== "string" || value.trim() === "") throw new TypeError(`${label} must be nonempty text`);
   return value.trim();
@@ -346,6 +351,72 @@ export async function executeProviderRequest({ authorizedFetch, descriptor } = {
   const response=await authorizedFetch(descriptor.url,{method:descriptor.method,redirect:"error",headers,body:JSON.stringify(descriptor.body)});
   const payload=await boundedJson(response,descriptor.provider);
   return normalizeProviderResponse(descriptor.provider,payload);
+}
+
+const ADMITTED_ASSET_TYPES = new Set(["image/png","image/jpeg","image/webp","image/svg+xml"]);
+const DEFAULT_MAX_ASSET_BYTES = 16 * 1024 * 1024;
+
+function admittedMediaType(value) {
+  const type=String(value ?? "").split(";",1)[0].trim().toLowerCase();
+  if (!ADMITTED_ASSET_TYPES.has(type)) throw new TypeError(`visual asset media type is not admitted: ${type || "missing"}`);
+  return type;
+}
+
+function assertPassiveSvg(bytes) {
+  const text=Buffer.from(bytes).toString("utf8");
+  const forbidden=[
+    /<script\b/iu,
+    /<foreignObject\b/iu,
+    /\son[a-z]+\s*=/iu,
+    /javascript\s*:/iu,
+    /(?:href|xlink:href)\s*=\s*["']\s*https?:/iu,
+  ];
+  if (forbidden.some((pattern)=>pattern.test(text))) throw new TypeError("generated SVG contains active or external content");
+}
+
+function materializedAsset(bytes, mediaType, source) {
+  if (bytes.byteLength < 1) throw new TypeError("generated visual asset is empty");
+  const type=admittedMediaType(mediaType);
+  if (type === "image/svg+xml") assertPassiveSvg(bytes);
+  const encoded=Buffer.from(bytes).toString("base64");
+  return Object.freeze({
+    type:"MaterializedVisualAsset",
+    version:1,
+    assetId:niBytes(bytes),
+    mediaType:type,
+    bytes:bytes.byteLength,
+    data:encoded,
+    dataUrl:`data:${type};base64,${encoded}`,
+    source:Object.freeze(source),
+  });
+}
+
+export async function materializeProviderAsset({ asset, fetchImpl = globalThis.fetch, maxBytes = DEFAULT_MAX_ASSET_BYTES } = {}) {
+  if (!asset || typeof asset !== "object") throw new TypeError("provider asset is required");
+  if (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 64 * 1024 * 1024) throw new TypeError("maxBytes is outside the admitted range");
+  if (asset.kind === "inline") {
+    const type=admittedMediaType(asset.mediaType);
+    if (typeof asset.data !== "string" || asset.data.length === 0) throw new TypeError("inline provider asset carries no data");
+    const bytes=Buffer.from(asset.data,"base64");
+    if (bytes.byteLength > maxBytes) throw new TypeError("inline provider asset exceeds the byte bound");
+    return materializedAsset(bytes,type,{kind:"inline"});
+  }
+  if (asset.kind === "url") {
+    if (typeof fetchImpl !== "function") throw new TypeError("URL provider asset materialization requires fetch");
+    let source;
+    try { source=new URL(asset.url); } catch { throw new TypeError("provider asset URL is malformed"); }
+    if (source.protocol !== "https:" || source.username || source.password) throw new TypeError("provider asset URL must be credential-free HTTPS");
+    const response=await fetchImpl(source.href,{method:"GET",redirect:"follow",headers:{accept:"image/avif,image/webp,image/png,image/jpeg,image/svg+xml"}});
+    if (!response.ok) throw new Error(`provider asset fetch ${response.status}`);
+    const finalUrl=new URL(response.url || source.href);
+    if (finalUrl.protocol !== "https:" || finalUrl.username || finalUrl.password) throw new TypeError("provider asset redirected outside credential-free HTTPS");
+    const length=Number(response.headers.get("content-length"));
+    if (Number.isFinite(length) && length > maxBytes) throw new TypeError("provider asset content-length exceeds the byte bound");
+    const bytes=new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > maxBytes) throw new TypeError("provider asset exceeds the byte bound");
+    return materializedAsset(bytes,response.headers.get("content-type"),{kind:"url",url:finalUrl.href});
+  }
+  throw new TypeError("provider asset kind is not admitted");
 }
 
 function esc(value) {

@@ -10,6 +10,8 @@ import {
   buildRecraftRequest,
   compileComponentPrompt,
   executeProviderRequest,
+  materializeProviderAsset,
+  niBytes,
   niDigest,
   providerCandidates,
 } from "../src/index.mjs";
@@ -188,4 +190,37 @@ test("normalized layout cannot escape the canvas", () => {
   const malformed=structuredClone(sceneInput);
   malformed.layers[0].layout={...malformed.layers[0].layout,x:.8,width:.4};
   assert.throws(()=>admitScene(malformed),/escapes the normalized canvas/u);
+});
+
+
+test("inline provider output becomes content-addressed asset bytes", async () => {
+  const materialized=await materializeProviderAsset({
+    asset:{kind:"inline",mediaType:"image/png",data:Buffer.from([1,2,3,4,5]).toString("base64")},
+  });
+  assert.equal(materialized.assetId,niBytes(new Uint8Array([1,2,3,4,5])));
+  assert.equal(materialized.mediaType,"image/png");
+  assert.match(materialized.dataUrl,/^data:image\/png;base64,/u);
+});
+
+test("URL provider output is detached from the provider URL", async () => {
+  const svg='<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z"/></svg>';
+  const materialized=await materializeProviderAsset({
+    asset:{kind:"url",url:"https://provider.example.invalid/output.svg"},
+    fetchImpl:async () => {
+      const response=new Response(svg,{status:200,headers:{"content-type":"image/svg+xml","content-length":String(Buffer.byteLength(svg))}});
+      Object.defineProperty(response,"url",{value:"https://cdn.example.invalid/final.svg"});
+      return response;
+    },
+  });
+  assert.equal(materialized.mediaType,"image/svg+xml");
+  assert.equal(materialized.source.url,"https://cdn.example.invalid/final.svg");
+  assert.match(materialized.assetId,/^ni:\/\/\/sha-256;/u);
+});
+
+test("active or externally dependent SVG is refused at ingestion", async () => {
+  const hostile='<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><image href="https://evil.invalid/x.png"/></svg>';
+  await assert.rejects(
+    ()=>materializeProviderAsset({asset:{kind:"inline",mediaType:"image/svg+xml",data:Buffer.from(hostile).toString("base64")}}),
+    /active or external content/u,
+  );
 });

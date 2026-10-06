@@ -72,6 +72,20 @@ Recraft is a renderer, not style authority. Its SVG output is valuable because i
 - GPT Image base64 output is normalized into the common component result;
 - the request descriptor carries no authorization header.
 
+## Koios v3 projection and mark
+
+Koios scenes use `koios.visual-scene/v3`.
+
+- projection is canonical isometric / axonometric parallel projection at ±30°;
+- flat cinematic perspective is not the default;
+- the deterministic publication mark is the five-blade aperture, not a literal eye;
+- four complete blades are #171a21;
+- the complete southeast / bottom-right blade is #000088;
+- the center is negative pentagonal aperture space;
+- mark handedness and signal-blade orientation are fixed, not provider-generated.
+
+`fiveBladeApertureGeometry()` and `koiosApertureSvg()` expose the deterministic construction for downstream assemblers.
+
 ## Deterministic assembly
 
 `assembleSvg()` composes admitted component references into an SVG. It never asks a generator to render:

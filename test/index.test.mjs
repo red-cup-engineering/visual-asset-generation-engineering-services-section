@@ -10,6 +10,8 @@ import {
   buildRecraftRequest,
   compileComponentPrompt,
   executeProviderRequest,
+  fiveBladeApertureGeometry,
+  koiosApertureSvg,
   materializeProviderAsset,
   niBytes,
   niDigest,
@@ -17,16 +19,17 @@ import {
 } from "../src/index.mjs";
 
 const sceneInput = {
-  version: "koios.visual-scene/v2",
+  version: "koios.visual-scene/v3",
   consumer: "koios.news",
   use: "article-hero",
   canvas: { aspectRatio: "16:9", safeArea: .06 },
+  projection: { kind: "isometric", axisAngleDeg: 30, parallel: true },
   palette: { paper: "#fbfaf7", ink: "#171a21", signal: "#000088", "signal-secondary": "#5366c4", fog: "#b9c1da" },
   layers: [
     { id: "world", role: "world", generatorPolicy: "reuse-first", primitiveHints: ["circle","horizon"], paletteRoles: ["paper","ink","signal"], transparent: false, z: 1, layout: { x: 0, y: 0, width: .68, height: 1, anchor: "west", fit: "cover", opacity: 1, rotation: 0, clip: true, blend: "normal" }, semanticPrompt: "a bounded world under institutional pressure" },
-    { id: "agent", role: "actor", generatorPolicy: "generate", primitiveHints: ["silhouette","eye"], paletteRoles: ["ink","signal"], transparent: true, z: 2, layout: { x: .58, y: .16, width: .34, height: .72, anchor: "south-east", fit: "contain", opacity: 1, rotation: 0, clip: false, blend: "normal" }, semanticPrompt: "one nonhuman economic actor treated as ordinary" },
+    { id: "agent", role: "actor", generatorPolicy: "generate", primitiveHints: ["silhouette","aperture"], paletteRoles: ["ink","signal"], transparent: true, z: 2, layout: { x: .58, y: .16, width: .34, height: .72, anchor: "south-east", fit: "contain", opacity: 1, rotation: 0, clip: false, blend: "normal" }, semanticPrompt: "one nonhuman economic actor treated as ordinary" },
   ],
-  assembly: { eyeMark: true, wordmark: false, textMode: "deterministic-overlay", cropStrategy: "subject-aware", compositionMode: "normalized-scene" },
+  assembly: { apertureMark: true, wordmark: false, textMode: "deterministic-overlay", cropStrategy: "subject-aware", compositionMode: "normalized-scene" },
 };
 
 test("scene admission is deterministic and canonical", () => {
@@ -72,7 +75,7 @@ test("deterministic assembler keeps generator output below publication chrome", 
       agent:{href:"data:image/png;base64,BBBB",provider:"ideogram-4-5"},
     },
   });
-  assert.match(assembly.svg,/id="koios-eye"/u);
+  assert.match(assembly.svg,/id="koios-aperture"/u);
   assert.match(assembly.svg,/Watching the future take shape/u);
   assert.match(assembly.svg,/data-layer="agent"/u);
   assert.match(assembly.svg,/x="928"/u);
@@ -180,7 +183,7 @@ test("geometry-heavy Koios layers prefer native vector generation", () => {
 });
 
 
-test("scene v2 rejects missing spatial contracts", () => {
+test("scene v3 rejects missing spatial contracts", () => {
   const malformed=structuredClone(sceneInput);
   delete malformed.layers[0].layout;
   assert.throws(()=>admitScene(malformed),/layout is required/u);
@@ -223,4 +226,32 @@ test("active or externally dependent SVG is refused at ingestion", async () => {
     ()=>materializeProviderAsset({asset:{kind:"inline",mediaType:"image/svg+xml",data:Buffer.from(hostile).toString("base64")}}),
     /active or external content/u,
   );
+});
+
+
+test("scene v3 requires canonical isometric projection", () => {
+  const malformed=structuredClone(sceneInput);
+  malformed.projection={kind:"perspective",axisAngleDeg:30,parallel:false};
+  assert.throws(()=>admitScene(malformed),/requires canonical isometric parallel projection/u);
+});
+
+test("five-blade aperture chooses one complete southeast signal blade", () => {
+  const geometry=fiveBladeApertureGeometry({size:100});
+  assert.equal(geometry.blades.length,5);
+  const signal=geometry.blades[geometry.signalIndex];
+  assert.ok(signal.centroid.x>geometry.cx);
+  assert.ok(signal.centroid.y>geometry.cy);
+  const svg=koiosApertureSvg({size:100});
+  assert.equal((svg.match(/data-signal="true"/gu) ?? []).length,1);
+  assert.equal((svg.match(/fill="#000088"/gu) ?? []).length,1);
+  assert.equal((svg.match(/fill="#171a21"/gu) ?? []).length,4);
+  assert.equal(/circle|ellipse|koios-eye/iu.test(svg),false);
+});
+
+test("component prompts require isometric projection and keep aperture nonliteral", () => {
+  const scene=admitScene(sceneInput);
+  const prompt=compileComponentPrompt(scene,"agent");
+  assert.match(prompt.prompt,/isometric \/ axonometric parallel projection/u);
+  assert.match(prompt.prompt,/five-blade mechanical aperture/u);
+  assert.match(prompt.prompt,/no pupil, iris, almond eye/u);
 });

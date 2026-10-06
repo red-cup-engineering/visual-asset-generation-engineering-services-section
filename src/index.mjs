@@ -32,9 +32,13 @@ function hex(value, label) {
 
 export function admitScene(input) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw new TypeError("scene must be an object");
-  if (input.version !== "koios.visual-scene/v2") throw new TypeError("scene version must be koios.visual-scene/v2");
+  if (input.version !== "koios.visual-scene/v3") throw new TypeError("scene version must be koios.visual-scene/v3");
   if (!USES.has(input.use)) throw new TypeError("scene use is not admitted");
   if (input.canvas === null || typeof input.canvas !== "object" || !ASPECTS.has(input.canvas.aspectRatio)) throw new TypeError("scene canvas aspect ratio is not admitted");
+  if (!input.projection || typeof input.projection !== "object" || Array.isArray(input.projection)
+      || input.projection.kind !== "isometric" || input.projection.axisAngleDeg !== 30 || input.projection.parallel !== true) {
+    throw new TypeError("Koios scene v3 requires canonical isometric parallel projection at ±30 degrees");
+  }
   if (input.palette === null || typeof input.palette !== "object") throw new TypeError("scene palette is required");
   const palette = Object.freeze(Object.fromEntries(Object.entries(input.palette).map(([key,value]) => [key,hex(value,`palette.${key}`)])));
   if (palette.paper !== "#fbfaf7" || palette.ink !== "#171a21" || palette.signal !== "#000088") throw new TypeError("scene does not carry the canonical Koios core palette");
@@ -89,10 +93,11 @@ export function admitScene(input) {
     consumer: nonempty(input.consumer,"consumer"),
     use: input.use,
     canvas: Object.freeze({ aspectRatio: input.canvas.aspectRatio, safeArea: Number.isFinite(input.canvas.safeArea) ? Math.max(0,Math.min(.25,input.canvas.safeArea)) : .06 }),
+    projection: Object.freeze({ kind:"isometric", axisAngleDeg:30, parallel:true }),
     palette,
     layers: Object.freeze(layers),
     assembly: Object.freeze({
-      eyeMark: input.assembly?.eyeMark !== false,
+      apertureMark: input.assembly?.apertureMark !== false,
       wordmark: input.assembly?.wordmark === true,
       textMode: input.assembly?.textMode === "none" ? "none" : "deterministic-overlay",
       cropStrategy: ["cover","contain","subject-aware"].includes(input.assembly?.cropStrategy) ? input.assembly.cropStrategy : "subject-aware",
@@ -113,7 +118,9 @@ export function compileComponentPrompt(sceneInput, layerId) {
     `Semantic role: ${layer.role}.`,
     layer.primitiveHints.length ? `Preferred geometry: ${layer.primitiveHints.join(", ")}.` : "",
     layer.semanticPrompt ? `Meaning: ${layer.semanticPrompt}` : "",
-    `Visual language: clean modernist symbolic editorial illustration; Bauhaus/Swiss/linocut ancestry without vintage print defects; crisp vector-like silhouettes; large intentional flat fields; restrained 2.5D depth from overlap and scale.`,
+    `Projection: canonical isometric / axonometric parallel projection; ground-plane axes at ±30 degrees; no converging vanishing point; preserve isometric construction across architecture, bodies, machines, terrain, and symbols.`,
+    `Visual language: clean modernist symbolic editorial illustration; Bauhaus/Swiss/linocut ancestry without vintage print defects; crisp vector-like silhouettes and isometric solids; large intentional flat fields; depth from elevation, adjacency, occlusion, and layer relation rather than camera perspective.`,
+    layer.primitiveHints.includes("aperture") ? "If an aperture appears, render a subtle five-blade mechanical aperture: central negative pentagonal opening, clockwise whirling tension, no pupil, iris, almond eye, eyelids, or literal eyeball." : "",
     `Palette: ${allowedColors.length ? allowedColors.join(", ") : Object.values(scene.palette).join(", ")}. Do not introduce unrelated brand colors.`,
     layer.transparent ? "Background must be transparent/alpha where supported; isolate the component cleanly with generous edge clearance." : "Use a simple clean field that can be masked or cropped deterministically.",
     "No text, letters, numbers, logos, wordmarks, watermarks, faux paper grain, halftone damage, ink bleed, distressed edges, registration error, neon cyberpunk, glitch effects, SCP styling, or decorative UI.",
@@ -419,6 +426,63 @@ export async function materializeProviderAsset({ asset, fetchImpl = globalThis.f
   throw new TypeError("provider asset kind is not admitted");
 }
 
+function polarPoint(cx, cy, radius, degrees) {
+  const radians=degrees * Math.PI / 180;
+  return Object.freeze({x:cx + Math.cos(radians)*radius, y:cy + Math.sin(radians)*radius});
+}
+
+function polygonCentroid(points) {
+  const sum=points.reduce((acc,point)=>({x:acc.x+point.x,y:acc.y+point.y}),{x:0,y:0});
+  return Object.freeze({x:sum.x/points.length,y:sum.y/points.length});
+}
+
+export function fiveBladeApertureGeometry({
+  size=64,
+  outerRadius=size*.46,
+  innerRadius=size*.165,
+  outerRotationDeg=-90,
+  innerRotationDeg=outerRotationDeg+36,
+}={}) {
+  if (!Number.isFinite(size) || size <= 0) throw new TypeError("aperture size must be positive");
+  const cx=size/2, cy=size/2;
+  const outer=Object.freeze(Array.from({length:5},(_,i)=>polarPoint(cx,cy,outerRadius,outerRotationDeg+i*72)));
+  const inner=Object.freeze(Array.from({length:5},(_,i)=>polarPoint(cx,cy,innerRadius,innerRotationDeg+i*72)));
+  const blades=Object.freeze(Array.from({length:5},(_,i)=>{
+    const points=Object.freeze([outer[i],outer[(i+1)%5],inner[(i+1)%5],inner[i]]);
+    return Object.freeze({index:i,points,centroid:polygonCentroid(points)});
+  }));
+  const southeast=blades.filter((blade)=>blade.centroid.x>cx && blade.centroid.y>cy);
+  const pool=southeast.length ? southeast : blades;
+  const signalIndex=pool.reduce((best,blade)=>{
+    const score=(blade.centroid.x-cx)+(blade.centroid.y-cy);
+    const bestScore=(best.centroid.x-cx)+(best.centroid.y-cy);
+    return score>bestScore ? blade : best;
+  }).index;
+  return Object.freeze({size,cx,cy,outer,inner,blades,signalIndex});
+}
+
+function pointsAttribute(points) {
+  return points.map((point)=>`${point.x.toFixed(3)},${point.y.toFixed(3)}`).join(" ");
+}
+
+export function koiosApertureSvg({
+  size=64,
+  ink="#171a21",
+  signal="#000088",
+  className,
+  ariaHidden=true,
+}={}) {
+  const geometry=fiveBladeApertureGeometry({size});
+  const blades=geometry.blades.map((blade)=>`<polygon data-blade="${blade.index}" data-signal="${blade.index===geometry.signalIndex ? "true" : "false"}" points="${pointsAttribute(blade.points)}" fill="${blade.index===geometry.signalIndex ? signal : ink}"/>`).join("");
+  const attrs=[
+    `xmlns="http://www.w3.org/2000/svg"`,
+    `viewBox="0 0 ${size} ${size}"`,
+    className ? `class="${String(className).replaceAll('"',"&quot;")}"` : "",
+    ariaHidden ? `aria-hidden="true"` : `role="img" aria-label="Koios five-blade aperture"`,
+  ].filter(Boolean).join(" ");
+  return `<svg ${attrs}>${blades}</svg>`;
+}
+
 function esc(value) {
   return String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll('"',"&quot;");
 }
@@ -448,7 +512,7 @@ function pixelFrame(layout, width, height) {
 
 export function assembleSvg({ scene: input, components = {}, width = 1600, height = 900, label } = {}) {
   const scene = input?.id ? input : admitScene(input);
-  if (scene.version !== "koios.visual-scene/v2" || scene.assembly?.compositionMode !== "normalized-scene") throw new TypeError("assembly requires an admitted Koios scene v2");
+  if (scene.version !== "koios.visual-scene/v3" || scene.assembly?.compositionMode !== "normalized-scene") throw new TypeError("assembly requires an admitted Koios scene v3");
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 320 || height < 180 || width > 8192 || height > 8192) throw new TypeError("assembly dimensions are invalid");
   const generated = scene.layers.filter((layer) => layer.generatorPolicy !== "deterministic-only");
   const defs = [];
@@ -467,7 +531,14 @@ export function assembleSvg({ scene: input, components = {}, width = 1600, heigh
     const style = layer.layout.blend === "normal" ? "" : ` style="mix-blend-mode:${layer.layout.blend}"`;
     return `<image data-layer="${esc(layer.id)}" data-role="${esc(layer.role)}" href="${esc(component.href)}" x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}" preserveAspectRatio="${preserve}" opacity="${layer.layout.opacity}"${transform}${clip}${style}/>`;
   }).join("\n");
-  const eye = scene.assembly.eyeMark ? `<g id="koios-eye" transform="translate(${width - 96} 72)" fill="none" stroke="${scene.palette.paper}" stroke-width="5"><path d="M-42 0C-22-26 22-26 42 0C22 26-22 26-42 0Z"/><circle cx="0" cy="0" r="12" fill="${scene.palette.paper}" stroke="none"/><circle cx="0" cy="0" r="5" fill="${scene.palette.signal}" stroke="none"/></g>` : "";
+  const aperture = scene.assembly.apertureMark
+    ? (() => {
+        const markSize=Math.max(54,Math.min(92,Math.round(Math.min(width,height)*.085)));
+        const geometry=fiveBladeApertureGeometry({size:markSize});
+        const blades=geometry.blades.map((blade)=>`<polygon points="${pointsAttribute(blade.points)}" fill="${blade.index===geometry.signalIndex ? scene.palette.signal : scene.palette.ink}"/>`).join("");
+        return `<g id="koios-aperture" transform="translate(${width - markSize - width*scene.canvas.safeArea} ${height*scene.canvas.safeArea})">${blades}</g>`;
+      })()
+    : "";
   const deterministicLabel = scene.assembly.textMode === "deterministic-overlay" && label ? `<text x="${width * scene.canvas.safeArea}" y="${height - height * scene.canvas.safeArea}" font-family="system-ui,sans-serif" font-size="${Math.max(18,Math.round(height*.035))}" font-weight="650" fill="${scene.palette.ink}">${esc(label)}</text>` : "";
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img">`,
@@ -475,7 +546,7 @@ export function assembleSvg({ scene: input, components = {}, width = 1600, heigh
     `<rect width="${width}" height="${height}" fill="${scene.palette.paper}"/>`,
     images,
     `<rect x="0" y="0" width="${Math.max(8,Math.round(width*.008))}" height="${height}" fill="${scene.palette.signal}"/>`,
-    eye,
+    aperture,
     deterministicLabel,
     "</svg>",
   ].filter(Boolean).join("\n");

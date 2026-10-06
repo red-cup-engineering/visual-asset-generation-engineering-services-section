@@ -1,5 +1,5 @@
 {
-  "id": "koios.visual-profile/v2",
+  "id": "koios.visual-profile/v3",
   "palette": {
     "paper": "#fbfaf7",
     "ink": "#171a21",
@@ -9,7 +9,7 @@
     "mineral": "#cdb26d"
   },
   "style": {
-    "summary": "clean modernist symbolic editorial illustration; Bauhaus/Swiss/linocut ancestry without historical print defects; 2.5D spatial depth; crisp geometry; future-normal institutional calm",
+    "summary": "clean isometric modernist symbolic editorial illustration; Bauhaus/Swiss/linocut ancestry without historical print defects; parallel axonometric depth; crisp geometry; future-normal institutional calm",
     "forbidden": [
       "faux paper grain",
       "halftone damage",
@@ -20,7 +20,10 @@
       "glitch",
       "generated publication typography",
       "SCP stamps",
-      "Backrooms yellow"
+      "Backrooms yellow",
+      "flat frontal perspective as default",
+      "literal eye logo",
+      "pupil or iris brand mark"
     ],
     "generatedText": false
   },
@@ -44,10 +47,26 @@
     "providerDiversityMinimum": 2,
     "preferredDiversityTarget": 3
   },
-  "sceneGrammar": "koios.visual-scene/v2",
+  "sceneGrammar": "koios.visual-scene/v3",
   "composition": {
     "mode": "normalized-scene",
     "regenerationOnCrop": false,
     "negativeSpaceReservedByTemplate": true
+  },
+  "projection": {
+    "kind": "isometric",
+    "axisAngleDeg": 30,
+    "parallel": true
+  },
+  "brandMark": {
+    "id": "koios.five-blade-aperture/v1",
+    "blades": 5,
+    "handedness": "clockwise",
+    "aperture": "negative pentagon",
+    "signalBlade": "south-east",
+    "signalBladeColor": "#000088",
+    "otherBladeColor": "#171a21",
+    "wholeBladeSignal": true,
+    "literalEye": false
   }
 }

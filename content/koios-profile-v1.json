@@ -1,0 +1,37 @@
+{
+  "id": "koios.visual-profile/v1",
+  "palette": {
+    "paper": "#fbfaf7",
+    "ink": "#171a21",
+    "signal": "#000088",
+    "signal-secondary": "#5366c4",
+    "fog": "#b9c1da",
+    "mineral": "#cdb26d"
+  },
+  "style": {
+    "summary": "clean modernist symbolic editorial illustration; Bauhaus/Swiss/linocut ancestry without historical print defects; 2.5D spatial depth; crisp geometry; future-normal institutional calm",
+    "forbidden": [
+      "faux paper grain",
+      "halftone damage",
+      "ink bleed",
+      "distressed edges",
+      "registration error",
+      "neon cyberpunk",
+      "glitch",
+      "generated publication typography",
+      "SCP stamps",
+      "Backrooms yellow"
+    ],
+    "generatedText": false
+  },
+  "providerPolicy": {
+    "transparentComponents": [
+      "ideogram-4-5"
+    ],
+    "complexScenes": [
+      "gemini-3.1-flash-image",
+      "gemini-3-pro-image"
+    ],
+    "providerDiversityMinimum": 2
+  }
+}

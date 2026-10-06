@@ -7,6 +7,7 @@ import {
   buildGeminiRequest,
   buildIdeogramRequest,
   compileComponentPrompt,
+  executeProviderRequest,
   niDigest,
   providerCandidates,
 } from "../src/index.mjs";
@@ -77,4 +78,32 @@ test("deterministic assembler keeps generator output below publication chrome", 
   });
   assert.match(manifest.id,/^ni:\/\/\/sha-256;/u);
   assert.equal(manifest.components.length,2);
+});
+
+
+test("provider execution is credential-blind and normalizes Ideogram assets", async () => {
+  const descriptor=buildIdeogramRequest({prompt:"clean symbolic component",aspectRatio:"16:9",seed:7});
+  let seen;
+  const result=await executeProviderRequest({
+    descriptor,
+    authorizedFetch:async (url,init)=>{
+      seen={url,init};
+      return new Response(JSON.stringify({data:[{url:"https://example.invalid/asset.png",seed:7,resolution:"1920x1088",is_image_safe:true}]}),{status:200,headers:{"content-type":"application/json"}});
+    },
+  });
+  assert.equal(seen.url,"https://api.ideogram.ai/v2/image/generate/ideogram-4-5");
+  assert.equal("Api-Key" in seen.init.headers,false);
+  assert.equal(result.status,"completed");
+  assert.equal(result.assets[0].kind,"url");
+});
+
+test("provider execution normalizes Gemini inline image data", async () => {
+  const descriptor=buildGeminiRequest({prompt:"clean symbolic component",aspectRatio:"1:1"});
+  const result=await executeProviderRequest({
+    descriptor,
+    authorizedFetch:async () => new Response(JSON.stringify({id:"interaction-1",output_image:{mime_type:"image/png",data:"AAECAw=="}}),{status:200}),
+  });
+  assert.equal(result.provider,"google-gemini");
+  assert.equal(result.assets[0].mediaType,"image/png");
+  assert.equal(result.assets[0].data,"AAECAw==");
 });

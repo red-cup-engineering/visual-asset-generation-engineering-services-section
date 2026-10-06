@@ -145,6 +145,68 @@ export function providerCandidates(layer) {
   return Object.freeze(["ideogram-4-5","gemini-3.1-flash-image","gemini-3-pro-image"]);
 }
 
+async function boundedJson(response, label) {
+  const raw = await response.text();
+  if (Buffer.byteLength(raw) > 4_000_000) throw new TypeError(`${label} response exceeds the bounded JSON limit`);
+  if (!response.ok) throw new Error(`${label} ${response.status}: ${raw.slice(0,500)}`);
+  try { return JSON.parse(raw); } catch { throw new TypeError(`${label} returned malformed JSON`); }
+}
+
+function findGeminiImages(value, found = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) findGeminiImages(item,found);
+    return found;
+  }
+  if (value === null || typeof value !== "object") return found;
+  const mime = value.mime_type ?? value.mimeType;
+  const data = value.data;
+  if (typeof mime === "string" && mime.startsWith("image/") && typeof data === "string" && data.length > 0) {
+    found.push(Object.freeze({ kind:"inline", mediaType:mime, data }));
+  }
+  if (value.output_image && typeof value.output_image === "object") findGeminiImages(value.output_image,found);
+  for (const [key,child] of Object.entries(value)) if (key !== "output_image") findGeminiImages(child,found);
+  return found;
+}
+
+export function normalizeProviderResponse(provider, payload) {
+  if (provider === "ideogram") {
+    const data = Array.isArray(payload?.data) ? payload.data : [];
+    const assets = data.flatMap((item) => {
+      if (!item || typeof item.url !== "string") return [];
+      return [Object.freeze({
+        kind:"url",
+        url:item.url,
+        seed:Number.isInteger(item.seed) ? item.seed : null,
+        resolution:typeof item.resolution === "string" ? item.resolution : null,
+        safe:item.is_image_safe !== false,
+      })];
+    });
+    if (assets.length === 0 && typeof payload?.generation_id === "string") {
+      return Object.freeze({ provider, status:"pending", generationId:payload.generation_id, assets:Object.freeze([]), raw:payload });
+    }
+    if (assets.length === 0) throw new TypeError("Ideogram response contains no image assets");
+    return Object.freeze({ provider, status:"completed", generationId:payload?.generation_id ?? null, assets:Object.freeze(assets), raw:payload });
+  }
+  if (provider === "google-gemini") {
+    const assets=findGeminiImages(payload);
+    if (assets.length === 0) throw new TypeError("Gemini response contains no image assets");
+    return Object.freeze({ provider, status:"completed", generationId:payload?.id ?? null, assets:Object.freeze(assets), raw:payload });
+  }
+  throw new TypeError(`unsupported visual provider response: ${provider}`);
+}
+
+export async function executeProviderRequest({ authorizedFetch, descriptor } = {}) {
+  if (typeof authorizedFetch !== "function") throw new TypeError("provider execution requires an attenuated authorizedFetch capability");
+  if (!descriptor || !["google-gemini","ideogram"].includes(descriptor.provider)) throw new TypeError("provider request descriptor is not admitted");
+  const headers={...descriptor.headers};
+  for(const name of Object.keys(headers)) if (name.toLowerCase()==="authorization" || name.toLowerCase()==="api-key" || name.toLowerCase()==="x-goog-api-key") {
+    throw new TypeError("provider credentials must be added by the authorizedFetch capability, not stored in the descriptor");
+  }
+  const response=await authorizedFetch(descriptor.url,{method:descriptor.method,redirect:"error",headers,body:JSON.stringify(descriptor.body)});
+  const payload=await boundedJson(response,descriptor.provider);
+  return normalizeProviderResponse(descriptor.provider,payload);
+}
+
 function esc(value) {
   return String(value).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll('"',"&quot;");
 }

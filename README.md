@@ -43,6 +43,18 @@ Builds credential-blind JSON requests for:
 
 Authentication is intentionally absent. The consuming capability adds `Api-Key`.
 
+## Execution
+
+`executeProviderRequest()` accepts one compiled request plus an attenuated `authorizedFetch` capability. The capability owns credential injection; request descriptors refuse to carry API credentials.
+
+The executor normalizes current provider responses into a common component result:
+
+- Ideogram URL assets, seeds, safety state, and resolution;
+- Gemini inline image data and media type;
+- pending Ideogram generation IDs when asynchronous generation is used.
+
+This means Operations can receive one provider-independent result shape while credentials remain with the provider boundary.
+
 ## Deterministic assembly
 
 `assembleSvg()` composes admitted component references into an SVG. It never asks a generator to render:

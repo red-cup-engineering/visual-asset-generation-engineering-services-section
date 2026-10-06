@@ -6,6 +6,8 @@ import {
   assembleSvg,
   buildGeminiRequest,
   buildIdeogramRequest,
+  buildOpenAIImageRequest,
+  buildRecraftRequest,
   compileComponentPrompt,
   executeProviderRequest,
   niDigest,
@@ -106,4 +108,68 @@ test("provider execution normalizes Gemini inline image data", async () => {
   assert.equal(result.provider,"google-gemini");
   assert.equal(result.assets[0].mediaType,"image/png");
   assert.equal(result.assets[0].data,"AAECAw==");
+});
+
+
+test("Recraft vector request carries Koios palette controls without credentials", () => {
+  const descriptor=buildRecraftRequest({
+    prompt:"clean institutional threshold component, no text",
+    size:"16:9",
+    seed:11,
+  });
+  assert.equal(descriptor.provider,"recraft");
+  assert.equal(descriptor.url,"https://external.api.recraft.ai/v1/images/generations");
+  assert.equal(descriptor.body.model,"recraftv4_1_vector");
+  assert.equal(descriptor.body.response_format,"url");
+  assert.deepEqual(descriptor.body.controls.colors[2],{rgb:[0,0,136]});
+  assert.equal("authorization" in descriptor.headers,false);
+});
+
+test("Recraft execution normalizes native asset URLs", async () => {
+  const descriptor=buildRecraftRequest({prompt:"clean vector system symbol"});
+  const result=await executeProviderRequest({
+    descriptor,
+    authorizedFetch:async () => new Response(JSON.stringify({
+      created:1780000000,
+      credits:80,
+      data:[{image_id:"img_koios_1",url:"https://cdn.example.invalid/koios.svg"}],
+    }),{status:200,headers:{"content-type":"application/json"}}),
+  });
+  assert.equal(result.provider,"recraft");
+  assert.equal(result.credits,80);
+  assert.equal(result.assets[0].imageId,"img_koios_1");
+  assert.match(result.assets[0].url,/\.svg$/u);
+});
+
+test("OpenAI GPT Image request and response stay credential-blind", async () => {
+  const descriptor=buildOpenAIImageRequest({
+    prompt:"one clean assemblable symbolic actor, no text",
+    model:"gpt-image-2",
+    size:"1536x1024",
+    background:"transparent",
+  });
+  assert.equal(descriptor.provider,"openai-image");
+  assert.equal(descriptor.url,"https://api.openai.com/v1/images/generations");
+  assert.equal("authorization" in descriptor.headers,false);
+  const result=await executeProviderRequest({
+    descriptor,
+    authorizedFetch:async () => new Response(JSON.stringify({
+      created:1780000000,
+      background:"transparent",
+      output_format:"png",
+      quality:"high",
+      size:"1536x1024",
+      data:[{b64_json:"AAECAwQ="}],
+      usage:{total_tokens:42},
+    }),{status:200,headers:{"content-type":"application/json"}}),
+  });
+  assert.equal(result.provider,"openai-image");
+  assert.equal(result.assets[0].mediaType,"image/png");
+  assert.equal(result.assets[0].data,"AAECAwQ=");
+});
+
+test("geometry-heavy Koios layers prefer native vector generation", () => {
+  const scene=admitScene(sceneInput);
+  const institution={...scene.layers[0],role:"institution"};
+  assert.equal(providerCandidates(institution)[0],"recraftv4_1_vector");
 });

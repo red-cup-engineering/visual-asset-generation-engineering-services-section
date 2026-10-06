@@ -138,11 +138,106 @@ export function buildIdeogramRequest({ prompt, model = "ideogram-4-5", seed, asp
   });
 }
 
+function hexRgb(value) {
+  const admitted = hex(value,"color");
+  return [
+    Number.parseInt(admitted.slice(1,3),16),
+    Number.parseInt(admitted.slice(3,5),16),
+    Number.parseInt(admitted.slice(5,7),16),
+  ];
+}
+
+const RECRAFT_MODELS = new Set([
+  "recraftv4_1",
+  "recraftv4_1_vector",
+  "recraftv4_1_pro",
+  "recraftv4_1_pro_vector",
+  "recraftv4_1_utility",
+  "recraftv4_1_utility_vector",
+  "recraftv4_1_utility_pro",
+  "recraftv4_1_utility_pro_vector",
+]);
+
+export function buildRecraftRequest({
+  prompt,
+  model = "recraftv4_1_vector",
+  size = "1:1",
+  n = 1,
+  seed,
+  colors = ["#fbfaf7","#171a21","#000088","#5366c4","#b9c1da"],
+  backgroundColor,
+  styleReferenceUrls = [],
+  styleMatch = "precise",
+} = {}) {
+  nonempty(prompt,"prompt");
+  if (!RECRAFT_MODELS.has(model)) throw new TypeError("Recraft model is not admitted");
+  if (!(ASPECTS.has(size) || /^\d{2,5}x\d{2,5}$/u.test(size))) throw new TypeError("Recraft size is not admitted");
+  if (!Number.isInteger(n) || n < 1 || n > 6) throw new TypeError("Recraft n must be 1..6");
+  if (seed !== undefined && (!Number.isInteger(seed) || seed < 0 || seed > 2147483647)) throw new TypeError("Recraft seed is invalid");
+  if (!Array.isArray(colors) || colors.length < 1 || colors.length > 12) throw new TypeError("Recraft colors must contain 1..12 colors");
+  if (!Array.isArray(styleReferenceUrls) || styleReferenceUrls.length > 10 || styleReferenceUrls.some((url) => typeof url !== "string" || !/^https:\/\//u.test(url))) {
+    throw new TypeError("Recraft style references must contain at most ten HTTPS URLs");
+  }
+  if (!["flexible","precise"].includes(styleMatch)) throw new TypeError("Recraft styleMatch is not admitted");
+  const controls = { colors: colors.map((color) => ({ rgb: hexRgb(color) })) };
+  if (backgroundColor !== undefined) controls.background_color = { rgb: hexRgb(backgroundColor) };
+  return requestDescriptor("recraft", "https://external.api.recraft.ai/v1/images/generations", {
+    prompt,
+    model,
+    size,
+    n,
+    response_format: "url",
+    controls,
+    ...(styleReferenceUrls.length === 0 ? {} : { style_reference_urls: styleReferenceUrls, style_match: styleMatch }),
+    ...(seed === undefined ? {} : { random_seed: seed }),
+  });
+}
+
+const OPENAI_IMAGE_MODELS = new Set([
+  "gpt-image-2",
+  "gpt-image-2.5-sunburst",
+  "gpt-image-2.5-flare",
+]);
+
+export function buildOpenAIImageRequest({
+  prompt,
+  model = "gpt-image-2",
+  size = "1024x1024",
+  quality = "high",
+  background = "transparent",
+  outputFormat = "png",
+  n = 1,
+} = {}) {
+  nonempty(prompt,"prompt");
+  if (!OPENAI_IMAGE_MODELS.has(model)) throw new TypeError("OpenAI image model is not admitted");
+  if (!(size === "auto" || /^\d{2,5}x\d{2,5}$/u.test(size))) throw new TypeError("OpenAI image size is not admitted");
+  if (!["low","medium","high","xhigh","max","auto"].includes(quality)) throw new TypeError("OpenAI image quality is not admitted");
+  if (!["transparent","opaque","auto"].includes(background)) throw new TypeError("OpenAI image background is not admitted");
+  if (!["png","webp","jpeg"].includes(outputFormat)) throw new TypeError("OpenAI image output format is not admitted");
+  if (!Number.isInteger(n) || n < 1 || n > 8) throw new TypeError("OpenAI image n must be 1..8");
+  return requestDescriptor("openai-image", "https://api.openai.com/v1/images/generations", {
+    model,
+    prompt,
+    size,
+    quality,
+    background,
+    output_format: outputFormat,
+    n,
+  });
+}
+
 export function providerCandidates(layer) {
   if (!layer || layer.generatorPolicy === "deterministic-only") return Object.freeze([]);
-  if (layer.transparent) return Object.freeze(["ideogram-4-5","gemini-3-pro-image","gemini-3.1-flash-image"]);
-  if (layer.role === "background-field" || layer.role === "terrain" || layer.role === "world") return Object.freeze(["gemini-3.1-flash-image","gemini-3-pro-image","ideogram-4-5"]);
-  return Object.freeze(["ideogram-4-5","gemini-3.1-flash-image","gemini-3-pro-image"]);
+  if (["institution","trajectory","evidence","primary-symbol","network","threshold"].includes(layer.role)) {
+    return Object.freeze(["recraftv4_1_vector","recraftv4_1_pro_vector","ideogram-4-5","gemini-3.1-flash-image","gpt-image-2"]);
+  }
+  if (layer.transparent) {
+    return Object.freeze(["ideogram-4-5","gpt-image-2","gemini-3-pro-image","gemini-3.1-flash-image","recraftv4_1_vector"]);
+  }
+  if (layer.role === "background-field" || layer.role === "terrain" || layer.role === "world") {
+    return Object.freeze(["gemini-3.1-flash-image","gemini-3-pro-image","gpt-image-2","ideogram-4-5","recraftv4_1"]);
+  }
+  return Object.freeze(["ideogram-4-5","gpt-image-2","gemini-3.1-flash-image","recraftv4_1_vector","gemini-3-pro-image"]);
 }
 
 async function boundedJson(response, label) {
@@ -192,12 +287,34 @@ export function normalizeProviderResponse(provider, payload) {
     if (assets.length === 0) throw new TypeError("Gemini response contains no image assets");
     return Object.freeze({ provider, status:"completed", generationId:payload?.id ?? null, assets:Object.freeze(assets), raw:payload });
   }
+  if (provider === "recraft") {
+    const data = Array.isArray(payload?.data) ? payload.data : [];
+    const assets = data.flatMap((item) => {
+      if (!item || typeof item.url !== "string") return [];
+      return [Object.freeze({
+        kind:"url",
+        url:item.url,
+        imageId:typeof item.image_id === "string" ? item.image_id : null,
+        safe:true,
+      })];
+    });
+    if (assets.length === 0) throw new TypeError("Recraft response contains no image assets");
+    return Object.freeze({ provider, status:"completed", generationId:null, credits:Number.isFinite(payload?.credits) ? payload.credits : null, assets:Object.freeze(assets), raw:payload });
+  }
+  if (provider === "openai-image") {
+    const data = Array.isArray(payload?.data) ? payload.data : [];
+    const assets = data.flatMap((item) => typeof item?.b64_json === "string" && item.b64_json.length > 0
+      ? [Object.freeze({ kind:"inline", mediaType:`image/${payload?.output_format === "jpeg" ? "jpeg" : payload?.output_format === "webp" ? "webp" : "png"}`, data:item.b64_json })]
+      : []);
+    if (assets.length === 0) throw new TypeError("OpenAI image response contains no base64 image assets");
+    return Object.freeze({ provider, status:"completed", generationId:null, usage:payload?.usage ?? null, assets:Object.freeze(assets), raw:payload });
+  }
   throw new TypeError(`unsupported visual provider response: ${provider}`);
 }
 
 export async function executeProviderRequest({ authorizedFetch, descriptor } = {}) {
   if (typeof authorizedFetch !== "function") throw new TypeError("provider execution requires an attenuated authorizedFetch capability");
-  if (!descriptor || !["google-gemini","ideogram"].includes(descriptor.provider)) throw new TypeError("provider request descriptor is not admitted");
+  if (!descriptor || !["google-gemini","ideogram","recraft","openai-image"].includes(descriptor.provider)) throw new TypeError("provider request descriptor is not admitted");
   const headers={...descriptor.headers};
   for(const name of Object.keys(headers)) if (name.toLowerCase()==="authorization" || name.toLowerCase()==="api-key" || name.toLowerCase()==="x-goog-api-key") {
     throw new TypeError("provider credentials must be added by the authorizedFetch capability, not stored in the descriptor");

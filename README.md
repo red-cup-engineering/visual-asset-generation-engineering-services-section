@@ -55,6 +55,23 @@ The executor normalizes current provider responses into a common component resul
 
 This means Operations can receive one provider-independent result shape while credentials remain with the provider boundary.
 
+### Recraft V4.1
+
+- native vector generation through `/v1/images/generations`;
+- palette controls are compiled from the consumer scene;
+- geometry-heavy semantic roles prefer `recraftv4_1_vector`;
+- the request descriptor carries no bearer token.
+
+Recraft is a renderer, not style authority. Its SVG output is valuable because it stays editable and assemblable.
+
+### OpenAI GPT Image
+
+- generation through `POST /v1/images/generations`;
+- current admitted models: `gpt-image-2`, `gpt-image-2.5-sunburst`, and `gpt-image-2.5-flare`;
+- transparent raster components are supported;
+- GPT Image base64 output is normalized into the common component result;
+- the request descriptor carries no authorization header.
+
 ## Deterministic assembly
 
 `assembleSvg()` composes admitted component references into an SVG. It never asks a generator to render:

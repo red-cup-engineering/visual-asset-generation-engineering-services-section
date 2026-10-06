@@ -26,12 +26,22 @@
   },
   "providerPolicy": {
     "transparentComponents": [
+      "ideogram-4-5",
+      "gpt-image-2",
+      "gemini-3-pro-image",
+      "recraftv4_1_vector"
+    ],
+    "geometryComponents": [
+      "recraftv4_1_vector",
+      "recraftv4_1_pro_vector",
       "ideogram-4-5"
     ],
     "complexScenes": [
       "gemini-3.1-flash-image",
-      "gemini-3-pro-image"
+      "gemini-3-pro-image",
+      "gpt-image-2"
     ],
-    "providerDiversityMinimum": 2
+    "providerDiversityMinimum": 2,
+    "preferredDiversityTarget": 3
   }
 }

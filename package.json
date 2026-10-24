@@ -1,5 +1,5 @@
 {
-  "name": "@red-cup-engineering/visual-asset-generation-services-section",
+  "name": "@red-cup-engineering/visual-asset-generation-engineering-services-section",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -30,7 +30,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/red-cup-engineering/visual-asset-generation-services-section.git"
+    "url": "git+https://github.com/red-cup-engineering/visual-asset-generation-engineering-services-section.git"
   },
   "funding": {
     "type": "individual",

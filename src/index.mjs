@@ -501,12 +501,20 @@ function anchorAlignment(anchor) {
   }
 }
 
+// Suppress only floating-point noise at integer pixel boundaries. Preserve
+// authored subpixel geometry rather than rounding every coordinate to a grid.
+function canonicalPixel(value) {
+  const integer = Math.round(value);
+  return Math.abs(value - integer) <= Number.EPSILON * Math.max(1, Math.abs(value)) * 4
+    ? integer : value;
+}
+
 function pixelFrame(layout, width, height) {
   return Object.freeze({
-    x: layout.x * width,
-    y: layout.y * height,
-    width: layout.width * width,
-    height: layout.height * height,
+    x: canonicalPixel(layout.x * width),
+    y: canonicalPixel(layout.y * height),
+    width: canonicalPixel(layout.width * width),
+    height: canonicalPixel(layout.height * height),
   });
 }
 
@@ -524,8 +532,8 @@ export function assembleSvg({ scene: input, components = {}, width = 1600, heigh
     const preserve = `${align} ${layer.layout.fit === "contain" ? "meet" : "slice"}`;
     const clipId = `clip-${layer.id}`;
     if (layer.layout.clip) defs.push(`<clipPath id="${esc(clipId)}"><rect x="${frame.x}" y="${frame.y}" width="${frame.width}" height="${frame.height}"/></clipPath>`);
-    const cx = frame.x + frame.width / 2;
-    const cy = frame.y + frame.height / 2;
+    const cx = canonicalPixel(frame.x + frame.width / 2);
+    const cy = canonicalPixel(frame.y + frame.height / 2);
     const transform = layer.layout.rotation === 0 ? "" : ` transform="rotate(${layer.layout.rotation} ${cx} ${cy})"`;
     const clip = layer.layout.clip ? ` clip-path="url(#${esc(clipId)})"` : "";
     const style = layer.layout.blend === "normal" ? "" : ` style="mix-blend-mode:${layer.layout.blend}"`;

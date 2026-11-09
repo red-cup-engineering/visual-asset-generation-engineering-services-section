@@ -255,3 +255,16 @@ test("component prompts require isometric projection and keep aperture nonlitera
   assert.match(prompt.prompt,/five-blade mechanical aperture/u);
   assert.match(prompt.prompt,/no pupil, iris, almond eye/u);
 });
+
+
+test("pixel serialization removes integer noise without erasing authored subpixels", () => {
+  const input = structuredClone(sceneInput);
+  input.layers[1].layout.x = .5801;
+  const assembly = assembleSvg({ scene: admitScene(input), width: 1600, height: 900,
+    components: { world: { href: "data:image/png;base64,AAAA" }, agent: { href: "data:image/png;base64,BBBB" } } });
+  const coordinate = Number(assembly.svg.match(/data-layer="agent"[^>]* x="([^"]+)"/u)[1]);
+  assert.equal(coordinate, .5801 * 1600);
+  assert.notEqual(coordinate, 928);
+  assert.equal(assembly.id, assembleSvg({ scene: admitScene(input), width: 1600, height: 900,
+    components: { world: { href: "data:image/png;base64,AAAA" }, agent: { href: "data:image/png;base64,BBBB" } } }).id);
+});

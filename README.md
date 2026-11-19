@@ -1,0 +1,112 @@
+# @red-cup-engineering/visual-asset-generation-engineering-services-section
+
+<!-- 561-group-standards:badges:start -->
+[![Red Cup Engineering](https://img.shields.io/badge/561%20Group-Red%20Cup%20Engineering-c0392b)](https://github.com/red-cup-engineering)
+[![License: MIT](https://img.shields.io/badge/license-MIT-c0392b)](LICENSE)
+[![Indigenous data: CARE](https://img.shields.io/badge/Indigenous%20data-CARE-4b6f44)](https://github.com/red-cup-engineering/.github/blob/main/GOVERNANCE.md)
+[![Tips welcome](https://img.shields.io/badge/tips-welcome-d4a017)](https://github.com/561-group/.github/blob/main/TIPS.md)
+<!-- 561-group-standards:badges:end -->
+
+Provider-neutral semantic visual asset compiler and deterministic assembler for publication systems.
+
+Red Cup Engineering's reusable visual-asset compiler.
+
+The service does **not** define a customer's brand. It consumes a typed scene graph supplied by a science/design authority and turns it into:
+
+1. reusable component-generation requests;
+2. provider-routing candidates;
+3. deterministic assembled SVG surfaces;
+4. ni-addressed manifests suitable for operations/provenance.
+
+## Why components, not posters
+
+Image generators are treated as rendering peripherals.
+
+Generated assets should normally be:
+
+- one semantic object or field;
+- transparent when possible;
+- free of publication text and logos;
+- reusable across multiple layouts;
+- independently replaceable when a provider changes.
+
+The assembler owns wordmarks, labels, crops, safe areas, z-order, final brand marks, and output dimensions.
+
+## Current provider request compilers
+
+### Google Nano Banana
+
+Builds credential-blind requests for the Gemini Interactions API at:
+
+`POST https://generativelanguage.googleapis.com/v1beta/interactions`
+
+Default model: `gemini-3.1-flash-image`.
+
+Authentication is intentionally absent from the request descriptor. The consuming capability adds `x-goog-api-key`.
+
+### Ideogram
+
+Builds credential-blind JSON requests for:
+
+`POST https://api.ideogram.ai/v2/image/generate/ideogram-4-5`
+
+Authentication is intentionally absent. The consuming capability adds `Api-Key`.
+
+## Execution
+
+`executeProviderRequest()` accepts one compiled request plus an attenuated `authorizedFetch` capability. The capability owns credential injection; request descriptors refuse to carry API credentials.
+
+The executor normalizes current provider responses into a common component result:
+
+- Ideogram URL assets, seeds, safety state, and resolution;
+- Gemini inline image data and media type;
+- pending Ideogram generation IDs when asynchronous generation is used.
+
+This means Operations can receive one provider-independent result shape while credentials remain with the provider boundary.
+
+### Recraft V4.1
+
+- native vector generation through `/v1/images/generations`;
+- palette controls are compiled from the consumer scene;
+- geometry-heavy semantic roles prefer `recraftv4_1_vector`;
+- the request descriptor carries no bearer token.
+
+Recraft is a renderer, not style authority. Its SVG output is valuable because it stays editable and assemblable.
+
+### OpenAI GPT Image
+
+- generation through `POST /v1/images/generations`;
+- current admitted models: `gpt-image-2`, `gpt-image-2.5-sunburst`, and `gpt-image-2.5-flare`;
+- transparent raster components are supported;
+- GPT Image base64 output is normalized into the common component result;
+- the request descriptor carries no authorization header.
+
+## Koios v3 projection and mark
+
+Koios scenes use `koios.visual-scene/v3`.
+
+- projection is canonical isometric / axonometric parallel projection at ±30°;
+- flat cinematic perspective is not the default;
+- the deterministic publication mark is the five-blade aperture, not a literal eye;
+- four complete blades are #171a21;
+- the complete southeast / bottom-right blade is #000088;
+- the center is negative pentagonal aperture space;
+- mark handedness and signal-blade orientation are fixed, not provider-generated.
+
+`fiveBladeApertureGeometry()` and `koiosApertureSvg()` expose the deterministic construction for downstream assemblers.
+
+## Deterministic assembly
+
+`assembleSvg()` composes admitted component references into an SVG. It never asks a generator to render:
+
+- Koios marks;
+- headlines;
+- metadata;
+- section labels;
+- crop/safe-area rules.
+
+Those remain deterministic.
+
+## Customer boundary
+
+Koios.News is the first consumer. This section is reusable by other 561 Group publications and services.

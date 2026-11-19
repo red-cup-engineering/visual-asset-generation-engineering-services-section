@@ -1,0 +1,38 @@
+{
+  "name": "@red-cup-engineering/visual-asset-generation-engineering-services-section",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Provider-neutral semantic visual asset compiler and deterministic assembler for publication systems.",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "files": [
+    "src",
+    "content"
+  ],
+  "scripts": {
+    "check": "node --check src/index.mjs",
+    "verify": "npm run check"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "keywords": [
+    "visual-assets",
+    "image-generation",
+    "scene-graph",
+    "ideogram",
+    "gemini",
+    "assembly"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/red-cup-engineering/visual-asset-generation-engineering-services-section.git"
+  },
+  "funding": {
+    "type": "individual",
+    "url": "https://github.com/561-group/.github/blob/main/TIPS.md"
+  }
+}

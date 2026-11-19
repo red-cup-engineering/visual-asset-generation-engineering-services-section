@@ -1,0 +1,19 @@
+---
+name: "4th PSYOP-inspired visual design prompt"
+type: "source-record"
+visibility: "private"
+authorship: "unverified"
+source-roles: ["assistant"]
+catalog-label-status: "Descriptive catalog label; no original authored title is asserted."
+sources: [{"repository": "causeway-services/emsenn-services-section-legacy", "revision": "99e5e5058d2f7a17c80bf1038e5531fe3b9b2a7e", "path": "2026-09-02-chatgpt-codex-transcripts/sessions/2026/06/22/rollout-2026-06-22T20-33-25-019ef21c-4b3e-7412-ac82-fc7de916479b.jsonl", "blob": "38a86d2f17e0852cef51dd7348ca118da1b85b97", "line": 229, "role": "assistant", "timestamp": "2026-06-23T01:45:17.173Z", "messageSha256": "48dbfa7518cc21c37ba14f108dc317aa264d100b55107031182f4837fc13030b", "selection": "complete fenced text body", "selectedSourceTextSha256": "52041c9ee3c292d09b7416783cdd828bdd30e34a4c3415f4086caa8ebfbea8ed", "characterStart": 147, "characterEnd": 2616, "retainedTextSha256": "d1c4f6077e2493d04249b9204f017b0e4405f0ce2d2af6a86588483063296fc6"}]
+source-edition: {"repository": "causeway-services/emsenn-services-section", "revision": "1f10206f30c573cfc57d86cc2168d23beda9bbf4", "path": "content/triage/2026-11-18-personal-text-consolidation/fourth-psyop-inspired-visual-design-prompt.md", "blob": "18e425b61cde9aaa25950eca86fbeecc59d023a0", "sha256": "d1c4f6077e2493d04249b9204f017b0e4405f0ce2d2af6a86588483063296fc6"}
+---
+You are generating visual assets in a 4th PSYOP-inspired military information-operations language across still image, video, print, social, web, and briefing formats. The visual system should feel like tactical communication infrastructure: airborne leaflet, field manual, signal broadcast, classified briefing slide, map overlay, loudspeaker truck, radio intercept, and archival military print material. Make it procedural, operational, and psychologically charged, not cinematic action branding.
+
+Compose with hard military grids, stencil typography, condensed sans-serif headers, serial numbers, unit-style labels, warning bands, map coordinates, target-area diagrams, arrows, callout boxes, broadcast-wave motifs, halftone portraits, aerial imagery, terrain maps, and document stamps. The artifact should read at three levels: command signal first, operational route second, evidentiary detail third. Use controlled asymmetry, harsh contrast, restricted spacing, and modular information blocks. Let the surface feel reproduced: photocopied, offset printed, faxed, laminated, field-worn, stamped, scanned, or screen-captured from a tactical display.
+
+Color system: olive drab, black, bone paper, signal red, warning yellow, desaturated blue, night-vision green, and low-contrast military gray. Use color as code, not decoration. Imagery should be documentary, surveillance-like, archival, cartographic, or diagrammatic: helicopters, loudspeakers, radio towers, leaflets, terrain, crowds at a distance, maps, signal paths, and field equipment. Typography may be slightly degraded, overprinted, stamped, or registration-shifted.
+
+For video, use briefing slates, hard cuts, radio static, map zooms, kinetic coordinates, signal interruptions, subtitle blocks, archival footage treatment, and restrained motion graphics. For social images, make compact propaganda-poster/field-brief hybrids: one directive, one dominant symbol, one evidence cue. For posters, privilege distance legibility and command presence. For books or reports, use field-manual grids, folios, marginal codes, captions, maps, and appendix-like density.
+
+Negative prompt: no glossy recruitment ad, no superhero militarism, no Call of Duty cinematic polish, no luxury tactical fashion, no patriotic stock-photo sentimentality, no realistic official seal impersonation, no fake government document claims, no neon cyberpunk, no soft lifestyle branding, no decorative clutter without operational meaning.

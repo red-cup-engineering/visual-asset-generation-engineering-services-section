@@ -30,7 +30,7 @@ function hex(value, label) {
   return value.toLowerCase();
 }
 
-export function admitScene(input) {
+export function validateScene(input) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw new TypeError("scene must be an object");
   if (input.version !== "koios.visual-scene/v3") throw new TypeError("scene version must be koios.visual-scene/v3");
   if (!USES.has(input.use)) throw new TypeError("scene use is not admitted");
@@ -108,7 +108,7 @@ export function admitScene(input) {
 }
 
 export function compileComponentPrompt(sceneInput, layerId) {
-  const scene = sceneInput.id ? sceneInput : admitScene(sceneInput);
+  const scene = sceneInput.id ? sceneInput : validateScene(sceneInput);
   const layer = scene.layers.find((candidate) => candidate.id === layerId);
   if (!layer) throw new TypeError(`scene contains no layer ${layerId}`);
   if (layer.generatorPolicy === "deterministic-only") throw new TypeError(`layer ${layerId} is deterministic-only and must not be sent to an image generator`);
@@ -175,11 +175,11 @@ export function buildIdeogramRequest({ prompt, model = "ideogram-4-5", seed, asp
 }
 
 function hexRgb(value) {
-  const admitted = hex(value,"color");
+  const validated = hex(value,"color");
   return [
-    Number.parseInt(admitted.slice(1,3),16),
-    Number.parseInt(admitted.slice(3,5),16),
-    Number.parseInt(admitted.slice(5,7),16),
+    Number.parseInt(validated.slice(1,3),16),
+    Number.parseInt(validated.slice(3,5),16),
+    Number.parseInt(validated.slice(5,7),16),
   ];
 }
 
@@ -360,12 +360,12 @@ export async function executeProviderRequest({ authorizedFetch, descriptor } = {
   return normalizeProviderResponse(descriptor.provider,payload);
 }
 
-const ADMITTED_ASSET_TYPES = new Set(["image/png","image/jpeg","image/webp","image/svg+xml"]);
+const VALIDATED_ASSET_TYPES = new Set(["image/png","image/jpeg","image/webp","image/svg+xml"]);
 const DEFAULT_MAX_ASSET_BYTES = 16 * 1024 * 1024;
 
-function admittedMediaType(value) {
+function validatedMediaType(value) {
   const type=String(value ?? "").split(";",1)[0].trim().toLowerCase();
-  if (!ADMITTED_ASSET_TYPES.has(type)) throw new TypeError(`visual asset media type is not admitted: ${type || "missing"}`);
+  if (!VALIDATED_ASSET_TYPES.has(type)) throw new TypeError(`visual asset media type is not admitted: ${type || "missing"}`);
   return type;
 }
 
@@ -383,7 +383,7 @@ function assertPassiveSvg(bytes) {
 
 function materializedAsset(bytes, mediaType, source) {
   if (bytes.byteLength < 1) throw new TypeError("generated visual asset is empty");
-  const type=admittedMediaType(mediaType);
+  const type=validatedMediaType(mediaType);
   if (type === "image/svg+xml") assertPassiveSvg(bytes);
   const encoded=Buffer.from(bytes).toString("base64");
   return Object.freeze({
@@ -402,7 +402,7 @@ export async function materializeProviderAsset({ asset, fetchImpl = globalThis.f
   if (!asset || typeof asset !== "object") throw new TypeError("provider asset is required");
   if (!Number.isInteger(maxBytes) || maxBytes < 1024 || maxBytes > 64 * 1024 * 1024) throw new TypeError("maxBytes is outside the admitted range");
   if (asset.kind === "inline") {
-    const type=admittedMediaType(asset.mediaType);
+    const type=validatedMediaType(asset.mediaType);
     if (typeof asset.data !== "string" || asset.data.length === 0) throw new TypeError("inline provider asset carries no data");
     const bytes=Buffer.from(asset.data,"base64");
     if (bytes.byteLength > maxBytes) throw new TypeError("inline provider asset exceeds the byte bound");
@@ -519,7 +519,7 @@ function pixelFrame(layout, width, height) {
 }
 
 export function assembleSvg({ scene: input, components = {}, width = 1600, height = 900, label } = {}) {
-  const scene = input?.id ? input : admitScene(input);
+  const scene = input?.id ? input : validateScene(input);
   if (scene.version !== "koios.visual-scene/v3" || scene.assembly?.compositionMode !== "normalized-scene") throw new TypeError("assembly requires an admitted Koios scene v3");
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 320 || height < 180 || width > 8192 || height > 8192) throw new TypeError("assembly dimensions are invalid");
   const generated = scene.layers.filter((layer) => layer.generatorPolicy !== "deterministic-only");

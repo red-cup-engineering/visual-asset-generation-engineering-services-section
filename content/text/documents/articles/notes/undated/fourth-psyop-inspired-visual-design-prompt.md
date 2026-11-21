@@ -1,7 +1,6 @@
 ---
 name: "4th PSYOP-inspired visual design prompt"
 type: "source-record"
-visibility: "private"
 authorship: "unverified"
 source-roles: ["assistant"]
 catalog-label-status: "Descriptive catalog label; no original authored title is asserted."

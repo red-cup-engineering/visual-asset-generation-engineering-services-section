@@ -1,0 +1,72 @@
+{
+  "id": "koios.visual-profile/v3",
+  "palette": {
+    "paper": "#fbfaf7",
+    "ink": "#171a21",
+    "signal": "#000088",
+    "signal-secondary": "#5366c4",
+    "fog": "#b9c1da",
+    "mineral": "#cdb26d"
+  },
+  "style": {
+    "summary": "clean isometric modernist symbolic editorial illustration; Bauhaus/Swiss/linocut ancestry without historical print defects; parallel axonometric depth; crisp geometry; future-normal institutional calm",
+    "forbidden": [
+      "faux paper grain",
+      "halftone damage",
+      "ink bleed",
+      "distressed edges",
+      "registration error",
+      "neon cyberpunk",
+      "glitch",
+      "generated publication typography",
+      "SCP stamps",
+      "Backrooms yellow",
+      "flat frontal perspective as default",
+      "literal eye logo",
+      "pupil or iris brand mark"
+    ],
+    "generatedText": false
+  },
+  "providerPolicy": {
+    "transparentComponents": [
+      "ideogram-4-5",
+      "gpt-image-2",
+      "gemini-3-pro-image",
+      "recraftv4_1_vector"
+    ],
+    "geometryComponents": [
+      "recraftv4_1_vector",
+      "recraftv4_1_pro_vector",
+      "ideogram-4-5"
+    ],
+    "complexScenes": [
+      "gemini-3.1-flash-image",
+      "gemini-3-pro-image",
+      "gpt-image-2"
+    ],
+    "providerDiversityMinimum": 2,
+    "preferredDiversityTarget": 3
+  },
+  "sceneGrammar": "koios.visual-scene/v3",
+  "composition": {
+    "mode": "normalized-scene",
+    "regenerationOnCrop": false,
+    "negativeSpaceReservedByTemplate": true
+  },
+  "projection": {
+    "kind": "isometric",
+    "axisAngleDeg": 30,
+    "parallel": true
+  },
+  "brandMark": {
+    "id": "koios.five-blade-aperture/v1",
+    "blades": 5,
+    "handedness": "clockwise",
+    "aperture": "negative pentagon",
+    "signalBlade": "south-east",
+    "signalBladeColor": "#000088",
+    "otherBladeColor": "#171a21",
+    "wholeBladeSignal": true,
+    "literalEye": false
+  }
+}

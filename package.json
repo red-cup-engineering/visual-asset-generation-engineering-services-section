@@ -14,5 +14,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/red-cup-engineering/visual-asset-generation-engineering-services-section.git"
+  },
+  "dependencies": {
+    "@red-cup-engineering/semiotic-content-address-system": "0.1.9"
   }
 }

@@ -1,34 +1,9 @@
-import { createHash } from "node:crypto";
+import { exactIdentity, makeNiUri } from "@red-cup-engineering/semiotic-content-address-system";
 
 const ROLES = new Set(["primary-symbol","actor","institution","terrain","world","trajectory","threshold","signal","network","evidence","background-field","ornament"]);
 const POLICIES = new Set(["generate","reuse-first","deterministic-only"]);
 const USES = new Set(["article-hero","article-inline","homepage-card","social-card","email","video-still","slide","symbol-library"]);
 const ASPECTS = new Set(["1:1","4:5","3:2","16:9","21:9"]);
-
-function stableJson(value) {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
-}
-
-export function niDigest(value) {
-  return `ni:///sha-256;${createHash("sha256").update(stableJson(value)).digest("base64url")}`;
-}
-
-export function niBytes(bytes) {
-  if (!(bytes instanceof Uint8Array)) throw new TypeError("niBytes requires Uint8Array bytes");
-  return `ni:///sha-256;${createHash("sha256").update(bytes).digest("base64url")}`;
-}
-
-function nonempty(value, label) {
-  if (typeof value !== "string" || value.trim() === "") throw new TypeError(`${label} must be nonempty text`);
-  return value.trim();
-}
-
-function hex(value, label) {
-  if (typeof value !== "string" || !/^#[0-9a-fA-F]{6}$/u.test(value)) throw new TypeError(`${label} must be a six-digit hex color`);
-  return value.toLowerCase();
-}
 
 export function admitScene(input) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) throw new TypeError("scene must be an object");
@@ -104,7 +79,7 @@ export function admitScene(input) {
       compositionMode: "normalized-scene",
     }),
   });
-  return Object.freeze({ id: niDigest(scene), ...scene });
+  return Object.freeze({ id: exactIdentity(scene), ...scene });
 }
 
 export function compileComponentPrompt(sceneInput, layerId) {
@@ -128,7 +103,7 @@ export function compileComponentPrompt(sceneInput, layerId) {
     "The result must remain legible as a thumbnail and reusable in multiple publication layouts.",
   ].filter(Boolean).join("\n");
   return Object.freeze({
-    id: niDigest({ scene: scene.id, layer: layer.id, prompt }),
+    id: exactIdentity({ scene: scene.id, layer: layer.id, prompt }),
     scene: scene.id,
     layer: layer.id,
     prompt,
@@ -138,7 +113,7 @@ export function compileComponentPrompt(sceneInput, layerId) {
 
 function requestDescriptor(provider, url, body) {
   const descriptor = Object.freeze({ provider, method: "POST", url, headers: Object.freeze({ "content-type": "application/json", accept: "application/json" }), body: Object.freeze(body) });
-  return Object.freeze({ id: niDigest(descriptor), ...descriptor });
+  return Object.freeze({ id: exactIdentity(descriptor), ...descriptor });
 }
 
 export function buildGeminiRequest({ prompt, model = "gemini-3.1-flash-image", references = [], aspectRatio = "1:1", imageSize = "2K" } = {}) {
@@ -389,7 +364,7 @@ function materializedAsset(bytes, mediaType, source) {
   return Object.freeze({
     type:"MaterializedVisualAsset",
     version:1,
-    assetId:niBytes(bytes),
+    assetId:makeNiUri(bytes),
     mediaType:type,
     bytes:bytes.byteLength,
     data:encoded,
@@ -558,7 +533,7 @@ export function assembleSvg({ scene: input, components = {}, width = 1600, heigh
     deterministicLabel,
     "</svg>",
   ].filter(Boolean).join("\n");
-  return Object.freeze({ id: niDigest({ scene: scene.id, width, height, svg }), mediaType: "image/svg+xml", svg });
+  return Object.freeze({ id: exactIdentity({ scene: scene.id, width, height, svg }), mediaType: "image/svg+xml", svg });
 }
 
 export function assetManifest({ scene, components, assembly, consumerUse } = {}) {
@@ -572,5 +547,5 @@ export function assetManifest({ scene, components, assembly, consumerUse } = {})
     components: Object.freeze(Object.entries(components).sort(([a],[b]) => a.localeCompare(b)).map(([layer,value]) => Object.freeze({ layer, asset: value.assetId ?? null, provider: value.provider ?? null, reused: value.reused === true }))),
     assembly: assembly.id,
   });
-  return Object.freeze({ id: niDigest(manifest), ...manifest });
+  return Object.freeze({ id: exactIdentity(manifest), ...manifest });
 }
